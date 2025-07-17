@@ -1,10 +1,14 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
-from telegram.error import BadRequest
+import os
+from dotenv import load_dotenv
+load_dotenv()  # Load environment variables from .env
+
 import random
 import string
 import sqlite3
 import logging
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
+from telegram.error import BadRequest
 
 # === Setup Logging ===
 logging.basicConfig(
@@ -12,12 +16,16 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# === CONFIG ===
-BOT_TOKEN = "8155036128:AAFYCMal39Fa-g-Ri0cjcFb7sN8aUod4RT0"
-BOT_USERNAME = "LinkVidBot_bot"
-CHANNEL_ID = "@Movies_bot21"  # ✅ Use the new public username
-CHANNEL_INVITE_LINK = "https://t.me/Movies_bot21"
+# === Load Config from .env ===
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_USERNAME = os.getenv("BOT_USERNAME")
+CHANNEL_ID = os.getenv("CHANNEL_ID")
+CHANNEL_INVITE_LINK = os.getenv("CHANNEL_INVITE_LINK")
 
+# === Debug: Check if environment variables loaded ===
+print(f"[DEBUG] BOT_TOKEN: {BOT_TOKEN}")  # Should NOT be None
+if not BOT_TOKEN:
+    raise ValueError("❌ BOT_TOKEN not found! Make sure it's defined in your .env file.")
 
 # === Database Setup ===
 conn = sqlite3.connect('database.db', check_same_thread=False)
