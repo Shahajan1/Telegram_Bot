@@ -1,42 +1,42 @@
 import os
-from dotenv import load_dotenv
-load_dotenv()  # Load environment variables from .env
-
 import random
 import string
 import sqlite3
 import logging
+from dotenv import load_dotenv
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, MessageHandler,
+    ContextTypes, filters
+)
 from telegram.error import BadRequest
 
-# === Setup Logging ===
+# === Logging ===
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
-# === Load Config from .env ===
+# === Load environment variables ===
+load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 BOT_USERNAME = os.getenv("BOT_USERNAME")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 CHANNEL_INVITE_LINK = os.getenv("CHANNEL_INVITE_LINK")
 
-# === Debug: Check if environment variables loaded ===
-print(f"[DEBUG] BOT_TOKEN: {BOT_TOKEN}")  # Should NOT be None
-if not BOT_TOKEN:
-    raise ValueError("❌ BOT_TOKEN not found! Make sure it's defined in your .env file.")
+if not all([BOT_TOKEN, BOT_USERNAME, CHANNEL_ID, CHANNEL_INVITE_LINK]):
+    raise ValueError("❌ One or more .env values are missing")
 
-# === Database Setup ===
+# === SQLite DB ===
 conn = sqlite3.connect('database.db', check_same_thread=False)
 cursor = conn.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS videos (code TEXT PRIMARY KEY, file_id TEXT)")
 
-# === Generate Unique Code ===
+# === Helpers ===
 def generate_code(length=6):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
-# === Check if user is member of the required channel ===
 async def is_member(bot, user_id):
     try:
         member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
@@ -44,69 +44,77 @@ async def is_member(bot, user_id):
     except BadRequest:
         return False
 
-# === Admin sends video ===
+# === Handlers ===
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    args = context.args
+    if args:
+        code = args[0]
+        data = cursor.execute("SELECT file_id FROM videos WHERE code=?", (code,)).fetchone()
+        if not data:
+            await update.message.reply_text("❌ Invalid or expired video code.")
+            return
+
+        user_id = update.effective_user.id
+        if not await is_member(context.bot, user_id):
+            button = InlineKeyboardMarkup([
+                [InlineKeyboardButton("📢 Join Channel", url=CHANNEL_INVITE_LINK)]
+            ])
+            await update.message.reply_text("🔒 Join the channel to unlock the video.", reply_markup=button)
+            return
+
+        await update.message.reply_video(data[0])
+    else:
+        await update.message.reply_text(
+            "👋 Welcome! Send me a video to get a sharable link, or send a code to retrieve a video."
+        )
+
 async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    file_id = update.message.video.file_id
+    video = update.message.video
+    if not user or not video:
+        return
 
-    # Generate unique code
+    file_id = video.file_id
     code = generate_code()
-    while cursor.execute("SELECT * FROM videos WHERE code=?", (code,)).fetchone() is not None:
+    while cursor.execute("SELECT * FROM videos WHERE code=?", (code,)).fetchone():
         code = generate_code()
 
     cursor.execute("INSERT INTO videos VALUES (?, ?)", (code, file_id))
     conn.commit()
 
-    link = f"https://t.me/{BOT_USERNAME}?start={code}"
-    await update.message.reply_text(f"Here’s your unique video link:\n{link}")
-    logging.info(f"Generated new link: {link} for user: {user.username or user.id}")
+    share_link = f"https://t.me/{BOT_USERNAME}?start={code}"
+    await update.message.reply_text(
+        f"🎥 Video saved!\n\n🔗 Share this link:\n{share_link}"
+    )
 
-# === When user clicks start ===
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    code = update.message.text.strip()
+    data = cursor.execute("SELECT file_id FROM videos WHERE code=?", (code,)).fetchone()
 
-    # Check if user is a member
-    if not await is_member(context.bot, user_id):
-        buttons = [
-            [InlineKeyboardButton("📢 Join Our Channel", url=CHANNEL_INVITE_LINK)],
-            [InlineKeyboardButton("✅ I've Joined", callback_data="check_subs")]
-        ]
-        reply_markup = InlineKeyboardMarkup(buttons)
-        await update.message.reply_text(
-            "Please join our channel to access the video:",
-            reply_markup=reply_markup
-        )
+    if not data:
+        await update.message.reply_text("❌ Invalid code.")
         return
 
-    # User is already a member
-    if context.args:
-        code = context.args[0]
-        cursor.execute("SELECT file_id FROM videos WHERE code=?", (code,))
-        result = cursor.fetchone()
-
-        if result:
-            await update.message.reply_video(result[0])
-        else:
-            await update.message.reply_text("⚠️ Invalid or expired link.")
-    else:
-        await update.message.reply_text("👋 Welcome! Send a video to generate a shareable link.")
-
-# === Callback when user clicks "I've Joined" ===
-async def check_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-
+    user_id = update.effective_user.id
     if not await is_member(context.bot, user_id):
-        await query.edit_message_text("❌ You're not a member yet. Please join the channel and try again.")
-    else:
-        await query.edit_message_text("✅ You’ve joined! Send the link again to get your video.")
+        button = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📢 Join Channel", url=CHANNEL_INVITE_LINK)]
+        ])
+        await update.message.reply_text("🔒 Join the channel to access the video.", reply_markup=button)
+        return
 
-# === Bot Setup ===
-app = ApplicationBuilder().token(BOT_TOKEN).build()
-app.add_handler(MessageHandler(filters.VIDEO, handle_video))
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CallbackQueryHandler(check_subscription, pattern="check_subs"))
+    await update.message.reply_video(data[0])
 
-print("✅ Bot is running...")
-app.run_polling()
+# === Main Launcher ===
+def main():
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.VIDEO, handle_video))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+
+    print("✅ Bot is running. Press Ctrl+C to stop.")
+    app.run_polling()  # Safe for all platforms — no asyncio.run needed
+
+if __name__ == '__main__':
+    main()
