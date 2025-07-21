@@ -113,8 +113,8 @@ def main():
     app.add_handler(MessageHandler(filters.VIDEO, handle_video))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
-    print("✅ Bot is running. Press Ctrl+C to stop.")
-    app.run_polling()  # Safe for all platforms — no asyncio.run needed
+    print("✅ Why Bot is running...")
+    app.run_polling()
 
 if __name__ == '__main__':
     main()
