@@ -1,26 +1,31 @@
 import os
+import sys
 import random
 import string
 import sqlite3
 import logging
 from dotenv import load_dotenv
 
-import telegram  # For version check
+import telegram
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    Application, CommandHandler, MessageHandler,
-    ContextTypes, filters
+    Application,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters
 )
 from telegram.error import BadRequest
 
-# === Logging ===
+# === Version info for debugging ===
+print(f"🐍 Python version: {sys.version}")
+print(f"📦 python-telegram-bot version: {telegram.__version__}")
+
+# === Logging setup ===
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
-
-# === Print python-telegram-bot version (debugging for Render) ===
-print(f"📦 python-telegram-bot version: {telegram.__version__}")
 
 # === Load environment variables ===
 load_dotenv()
@@ -30,9 +35,9 @@ CHANNEL_ID = os.getenv("CHANNEL_ID")
 CHANNEL_INVITE_LINK = os.getenv("CHANNEL_INVITE_LINK")
 
 if not all([BOT_TOKEN, BOT_USERNAME, CHANNEL_ID, CHANNEL_INVITE_LINK]):
-    raise ValueError("❌ One or more .env values are missing")
+    raise ValueError("❌ One or more environment variables are missing.")
 
-# === SQLite DB ===
+# === Database setup ===
 conn = sqlite3.connect('database.db', check_same_thread=False)
 cursor = conn.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS videos (code TEXT PRIMARY KEY, file_id TEXT)")
@@ -109,16 +114,20 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_video(data[0])
 
-# === Main Launcher ===
+# === Bot launcher ===
 def main():
-    app = Application.builder().token(BOT_TOKEN).build()  # ✅ Safer version
+    try:
+        app = Application.builder().token(BOT_TOKEN).build()
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.VIDEO, handle_video))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+        app.add_handler(CommandHandler("start", start))
+        app.add_handler(MessageHandler(filters.VIDEO, handle_video))
+        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
-    print("✅ Bot is running...")
-    app.run_polling()
+        print("✅ Bot is starting...")
+        app.run_polling()
+
+    except Exception as e:
+        logging.error(f"❌ Failed to start bot: {e}")
 
 if __name__ == '__main__':
     main()
