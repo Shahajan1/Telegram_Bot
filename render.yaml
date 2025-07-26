@@ -7,6 +7,7 @@ services:
     plan: free
     runtime: python
     autoDeploy: true
+    pythonVersion: 3.11.9 
     envVars:
       - key: BOT_TOKEN
         value: 8155036128:AAFYCMal39Fa-g-Ri0cjcFb7sN8aUod4RT0
