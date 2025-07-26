@@ -2,12 +2,12 @@ services:
   - type: web
     name: telegram-bot
     env: python
-    buildCommand: ""
-    startCommand: python main.py
-    plan: free
     runtime: python
+    buildCommand: ""                 # 💥 Forces recognition of runtime.txt
+    startCommand: python main.py
+    pythonVersion: 3.11.9            # 💥 Critical: forces correct Python version
+    plan: free
     autoDeploy: true
-    pythonVersion: 3.11.9 
     envVars:
       - key: BOT_TOKEN
         value: 8155036128:AAFYCMal39Fa-g-Ri0cjcFb7sN8aUod4RT0
