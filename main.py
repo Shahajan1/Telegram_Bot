@@ -5,10 +5,10 @@ import sqlite3
 import logging
 from dotenv import load_dotenv
 
-import telegram  # <--- Added for version check
+import telegram  # For version check
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler,
+    Application, CommandHandler, MessageHandler,
     ContextTypes, filters
 )
 from telegram.error import BadRequest
@@ -19,7 +19,7 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# === Print version of python-telegram-bot (for debugging on Render) ===
+# === Print python-telegram-bot version (debugging for Render) ===
 print(f"📦 python-telegram-bot version: {telegram.__version__}")
 
 # === Load environment variables ===
@@ -111,7 +111,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # === Main Launcher ===
 def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app = Application.builder().token(BOT_TOKEN).build()  # ✅ Safer version
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.VIDEO, handle_video))
