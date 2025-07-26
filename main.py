@@ -5,6 +5,7 @@ import sqlite3
 import logging
 from dotenv import load_dotenv
 
+import telegram  # <--- Added for version check
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
@@ -17,6 +18,9 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
+
+# === Print version of python-telegram-bot (for debugging on Render) ===
+print(f"📦 python-telegram-bot version: {telegram.__version__}")
 
 # === Load environment variables ===
 load_dotenv()
@@ -113,7 +117,7 @@ def main():
     app.add_handler(MessageHandler(filters.VIDEO, handle_video))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
-    print("✅ Why Bot is running...")
+    print("✅ Bot is running...")
     app.run_polling()
 
 if __name__ == '__main__':
